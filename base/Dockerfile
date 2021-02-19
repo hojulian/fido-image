@@ -54,11 +54,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3-pip \
     python3-yaml
 
-# Code-server
-RUN mkdir /code-server && \
-    curl -fL https://github.com/cdr/code-server/releases/download/v3.6.1/code-server-3.6.1-linux-amd64.tar.gz \
-    | tar xvz --strip-components=1 -C /code-server
-
 # COURSE SPECIFIC CONFIGURATIONS ------------------------------------------------------------------
 WORKDIR /my_ros_data
 
@@ -73,9 +68,6 @@ ADD files/rootfs/.jwmrc /entry/
 COPY files/sshd/sshd_config /etc/ssh/
 COPY files/nginx/default /etc/nginx/sites-enabled/
 COPY files/supervisor/supervisord.conf /etc/supervisor/conf.d/
-
-RUN mkdir -p /my_ros_data/.config/code-server
-COPY files/code-server/config.yaml /my_ros_data/.config/code-server/config.yaml
 
 RUN git clone https://github.com/campusrover/rosutils.git
 

@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 if [[ ! -z "${GW_IP}" ]]; then

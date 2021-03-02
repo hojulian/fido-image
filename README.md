@@ -6,10 +6,7 @@
 
 This is a docker image for running fido simulations. It is modified from `pitosalas/tb3-ros`.
 
-Built with,
+Built with:
 
 * ROS Melodic
-* VSCode
 * NoVNC desktop
-* Turtlebot3 packages
-* prrexamples: examples from the book Programming Robotics with Ros

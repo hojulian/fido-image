@@ -1,113 +1,61 @@
-FROM dorowu/ubuntu-desktop-lxde-vnc:bionic
+# Build easy-novnc
+FROM golang:1.15-buster AS easy-novnc-build
 
-# BASE IMAGE CUSTOMIZATIONS -----------------------------------------------------------------------
+RUN git clone https://github.com/pgaskin/easy-novnc.git /easy-novnc
+WORKDIR /easy-novnc
+RUN go mod download && \
+    go build -o /bin/easy-novnc .
 
-ENV LANG C.UTF-8
-ENV LC_ALL C.UTF-8
+# Build image
+FROM osrf/ros:melodic-desktop-full-bionic
 
-ENV ROS_DISTRO melodic
+RUN /bin/bash -c "source /opt/ros/melodic/setup.bash"
 
-# Install system dependencies
+# update ubuntu and install all dependencies
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python \
-    python-pip \
-    python-dev \
-    python-mako \
-    nano \
-    wget \
-    curl \
-    tar \
-    make \
-    git \
-    curl \
-    openssh-server \
-    iptables \
-    iproute2 \
-    iputils-ping \
-    netcat
+        tigervnc-standalone-server \
+        openbox \
+        supervisor \
+        mesa-utils \
+        libglu1-mesa \
+        xterm \
+        python \
+        python3.8 \
+        python-pip \
+        wget \
+        ros-melodic-image-transport \
+        ros-melodic-cv-bridge \
+        ros-melodic-rqt \
+        ros-melodic-rqt* \
+        ros-melodic-rviz
 
-RUN mkdir -p /my_ros_data/tailscale
-RUN curl -vsLo tailscale.tar.gz "https://pkgs.tailscale.com/stable/tailscale_1.2.10_amd64.tgz" && \
-    tar xvf tailscale.tar.gz && \
-    mv "tailscale_1.2.10_amd64/tailscaled" /usr/bin && \
-    mv "tailscale_1.2.10_amd64/tailscale" /usr/bin
+# copy easy-novnc
+COPY --from=easy-novnc-build /bin/easy-novnc /usr/local/bin/
 
-RUN chmod +x /usr/bin/tailscale
-RUN chmod +x /usr/bin/tailscaled
+WORKDIR /workspace
 
-# ROS melodic support
-RUN echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list
-RUN apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+# set the environment variables (display -> 99)
+ENV DISPLAY=":99" \
+    PASSWORD="dev@ros" \
+    HOME="/workspace" \
+    NAME_CATKIN_WORKSPACE=/workspace/catkin_ws
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    build-essential \
-    python-rosdep \
-    python-rosinstall \
-    python-vcstools \
-    ros-melodic-rqt \
-    ros-melodic-rqt* \
-    ros-melodic-rviz \
-    ros-melodic-desktop-full
+# source ros for every new terminal session
+RUN echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
 
-# Python3 support
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python3-pip \
-    python3-yaml
-
-# COURSE SPECIFIC CONFIGURATIONS ------------------------------------------------------------------
-WORKDIR /my_ros_data
-
-ENV TB3_MODEL=burger \
-    TURTLEBOT3_MODEL=burger \
-    HOME=/my_ros_data \
-    NAME_CATKIN_WORKSPACE=/my_ros_data/catkin_ws
-
-# Copy needed files
-ADD files/rootfs/.bashrc .
-ADD files/rootfs/.jwmrc /entry/
-COPY files/sshd/sshd_config /etc/ssh/
-COPY files/nginx/default /etc/nginx/sites-enabled/
-COPY files/supervisor/supervisord.conf /etc/supervisor/conf.d/
-
-RUN git clone https://github.com/campusrover/rosutils.git
-
-WORKDIR /my_ros_data/catkin_ws/src
+# set our workdir
+WORKDIR /workspace/catkin_ws/src
 RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_init_workspace"
 
-WORKDIR /my_ros_data/catkin_ws
+WORKDIR /workspace/catkin_ws
 RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_make"
 
-WORKDIR /my_ros_data/catkin_ws/src
-RUN git clone --recursive --depth=1 https://github.com/ROBOTIS-GIT/turtlebot3_msgs.git
-RUN git clone --recursive --depth=1 https://github.com/ROBOTIS-GIT/turtlebot3.git
-RUN git clone --recursive --depth=1 https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git
-RUN git clone --recursive --depth=1 https://github.com/campusrover/prrexamples.git
-RUN git clone --recursive --depth=1 https://github.com/campusrover/gpg_bran4.git
+WORKDIR /workspace
 
-WORKDIR /my_ros_data
+# add Tini
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /usr/bin/tini
+RUN chmod +x /usr/bin/tini
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/bin/supervisord", "-n"]
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ros-melodic-slam-gmapping \
-    ros-melodic-map-server \
-    ros-melodic-move-base \
-    ros-melodic-dwa-local-planner \
-    ros-melodic-fiducials \
-    ros-melodic-arbotix-* \
-    ros-melodic-turtlebot*
-
-RUN rosdep init && \
-    rosdep update --rosdistro $ROS_DISTRO
-
-RUN pip install redis
-RUN pip3 install \
-    rospkg \
-    catkin_pkg
-
-WORKDIR /my_ros_data/catkin_ws
-RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_make"
-
-COPY ./entrypoint.sh /entry/
-RUN chmod +x /entry/entrypoint.sh
-# Override entrypoint of base image
-ENTRYPOINT []
-CMD ["bash", "-c", "/entry/entrypoint.sh"]
+COPY ./supervisord.conf /etc/

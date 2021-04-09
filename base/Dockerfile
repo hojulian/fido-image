@@ -27,7 +27,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
         ros-melodic-cv-bridge \
         ros-melodic-rqt \
         ros-melodic-rqt* \
-        ros-melodic-rviz
+        ros-melodic-rviz \
+        ros-melodic-rosbridge-server \
+        ros-melodic-tf2-web-republisher
 
 # copy easy-novnc
 COPY --from=easy-novnc-build /bin/easy-novnc /usr/local/bin/

@@ -40,19 +40,17 @@ WORKDIR /workspace
 ENV DISPLAY=":99" \
     PASSWORD="dev@ros" \
     HOME="/workspace" \
-    NAME_CATKIN_WORKSPACE=/workspace/catkin_ws
+    NAME_CATKIN_WORKSPACE=/workspace/fido_ws
 
 # source ros for every new terminal session
 RUN echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
 
 # set our workdir
-WORKDIR /workspace/catkin_ws/src
+WORKDIR /workspace/fido_ws/src
 RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_init_workspace"
 
-WORKDIR /workspace/catkin_ws
+WORKDIR /workspace/fido_ws
 RUN /bin/bash -c "source /opt/ros/melodic/setup.bash && catkin_make"
-
-WORKDIR /workspace
 
 # add Tini
 ENV TINI_VERSION v0.19.0
